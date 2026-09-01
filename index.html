@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manaos · Proyección Larga 2025-26</title>
+<meta name="description" content="Dashboard comercial de la temporada 2025-26: ventas, vendedores, clientes, productos y territorio.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tablero.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">M</div>
+      <div>
+        <h1>Manaos · Proyección Larga 2025-26</h1>
+        <p class="subtitle">Detalle de ventas por renglón · Ene 2025 → Ago 2026 (20 meses de temporada)
+          <span class="badge-warn" id="badge-parcial" title="Jul-2026 solo tiene datos desde el 20/07">⚠ Jul 26 parcial</span>
+        </p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span class="gen" id="gen-info">cargando…</span>
+      <button class="btn ghost" id="btn-compartir" title="Copiar link con los filtros actuales">🔗 Compartir</button>
+      <button class="btn ghost" id="btn-metodologia">ℹ Calidad y metodología</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ============ KPIs ============ -->
+  <section class="kpis" id="kpis" aria-label="Indicadores clave">
+    <div class="kpi"><div class="kpi-label">Facturación neta <span class="kpi-note" title="Suma de 'Total m. local' (base sin impuestos), sin ajustes contables">ⓘ</span></div>
+      <div class="kpi-value" id="k-neto">—</div><div class="kpi-sub" id="k-neto-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Facturación bruta <span class="kpi-note" title="Suma de 'Total renglón' (con impuestos), sin ajustes contables">ⓘ</span></div>
+      <div class="kpi-value" id="k-bruto">—</div><div class="kpi-sub" id="k-bruto-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Volumen (unid.) <span class="kpi-note" title="Suma de 'Cantidad' (neto de devoluciones y bonificaciones)">ⓘ</span></div>
+      <div class="kpi-value" id="k-vol">—</div><div class="kpi-sub" id="k-vol-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Clientes activos <span class="kpi-note" title="Clientes con al menos un renglón en el período (aprox. si hay filtro de provincia/línea)">ⓘ</span></div>
+      <div class="kpi-value" id="k-cli">—</div><div class="kpi-sub" id="k-cli-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Documentos <span class="kpi-note" title="Cantidad de comprobantes distintos (aprox. si hay filtro de provincia/línea)">ⓘ</span></div>
+      <div class="kpi-value" id="k-docs">—</div><div class="kpi-sub" id="k-docs-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Ticket promedio</div>
+      <div class="kpi-value" id="k-ticket">—</div><div class="kpi-sub" id="k-ticket-sub">neto por documento</div></div>
+    <div class="kpi"><div class="kpi-label">Devoluciones y anula. <span class="kpi-note" title="Renglones con total negativo (NCW, NCI y anulaciones en FVW)">ⓘ</span></div>
+      <div class="kpi-value neg" id="k-devol">—</div><div class="kpi-sub" id="k-devol-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Bonificaciones (promo) <span class="kpi-note" title="Línea BONIFICACION: unidades y valor de bonos entregados (negativo en el total)">ⓘ</span></div>
+      <div class="kpi-value" id="k-bono">—</div><div class="kpi-sub" id="k-bono-sub"></div></div>
+  </section>
+
+  <!-- ============ FILTROS ============ -->
+  <section class="filters card" id="filters">
+    <div class="f-group">
+      <span class="f-title">Período</span>
+      <div class="presets">
+        <button class="chip" data-preset="full">Temporada completa</button>
+        <button class="chip" data-preset="2025">2025</button>
+        <button class="chip" data-preset="2026">2026</button>
+        <button class="chip" data-preset="last6">Últ. 6 meses</button>
+      </div>
+      <div class="ms" id="ms-mes"></div>
+    </div>
+    <div class="f-group">
+      <span class="f-title">Vendedor</span>
+      <div class="ms" id="ms-vnd"></div>
+    </div>
+    <div class="f-group">
+      <span class="f-title">Vendedor 2º (equipo)</span>
+      <div class="ms" id="ms-vnd2"></div>
+    </div>
+    <div class="f-group">
+      <span class="f-title">Provincia</span>
+      <div class="ms" id="ms-prov"></div>
+    </div>
+    <div class="f-group">
+      <span class="f-title">Línea</span>
+      <div class="ms" id="ms-linea"></div>
+    </div>
+    <div class="f-group right">
+      <button class="btn ghost" id="btn-reset">✕ Limpiar filtros</button>
+    </div>
+  </section>
+  <p class="filter-note" id="filter-note"></p>
+
+  <!-- ============ TABS ============ -->
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="general">General</button>
+    <button class="tab" data-tab="vendedores">Vendedores</button>
+    <button class="tab" data-tab="clientes">Clientes</button>
+    <button class="tab" data-tab="productos">Productos</button>
+    <button class="tab" data-tab="territorio">Territorio</button>
+    <button class="tab" data-tab="datos">Datos</button>
+  </nav>
+
+  <!-- ============ GENERAL ============ -->
+  <section class="tabpane active" id="pane-general">
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Facturación neta mensual <small>con comparación año anterior (meses 2026 vs 2025)</small></h3>
+        <div class="chart-box tall"><canvas id="ch-serie"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Curva acumulada de temporada</h3>
+        <div class="chart-box tall"><canvas id="ch-acum"></canvas></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Crecimiento interanual % <small>mes de 2026 vs mismo mes de 2025 (neto)</small></h3>
+        <div class="chart-box"><canvas id="ch-yoy"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Clientes activos por mes</h3>
+        <div class="chart-box"><canvas id="ch-cliact"></canvas></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Mix por línea <small>(% de neto en el período)</small></h3>
+        <div class="chart-box"><canvas id="ch-lineadonut"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Mix por tipo de artículo <small>(% de neto en el período)</small></h3>
+        <div class="chart-box"><canvas id="ch-tipobar"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VENDEDORES ============ -->
+  <section class="tabpane" id="pane-vendedores">
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Ranking de vendedores <small>(neto · período filtrado · clic en la barra para comparar tendencias)</small></h3>
+        <div class="chart-box tall"><canvas id="ch-vndrank"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Tendencia mensual comparada <small>vendedores seleccionados (neto)</small></h3>
+        <div class="chart-box tall"><canvas id="ch-vndtrend"></canvas></div>
+      </div>
+    </div>
+    <div class="card table-card">
+      <div class="table-head">
+        <h3>Detalle por vendedor</h3>
+        <input class="search" id="search-vnd" placeholder="Buscar vendedor…">
+      </div>
+      <div class="table-wrap"><table class="tbl" id="tbl-vnd">
+        <thead><tr><th data-k="vnd">Vendedor</th><th data-k="b" class="num">Neto</th><th data-k="bruto" class="num">Bruto</th>
+        <th data-k="v" class="num">Volumen</th><th data-k="c" class="num">Clientes</th><th data-k="d" class="num">Docs</th>
+        <th data-k="ticket" class="num">Ticket prom.</th><th data-k="yoy" class="num">YoY %</th><th data-k="pct" class="num">% total</th></tr></thead>
+        <tbody id="tb-vnd"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ CLIENTES ============ -->
+  <section class="tabpane" id="pane-clientes">
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Distribución de clientes <small>curva de concentración (Pareto) sobre el neto del período</small></h3>
+        <div class="chart-box"><canvas id="ch-pareto"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Nuevos clientes por mes <small>primer compra en la temporada</small></h3>
+        <div class="chart-box"><canvas id="ch-nuevos"></canvas></div>
+      </div>
+    </div>
+    <div class="card table-card">
+      <div class="table-head">
+        <h3>Top 30 clientes <small>(período filtrado)</small></h3>
+        <input class="search" id="search-cli" placeholder="Buscar cliente y ver su historia →">
+      </div>
+      <div class="table-wrap"><table class="tbl" id="tbl-cli">
+        <thead><tr><th data-k="c">Cliente</th><th data-k="prov">Provincia</th><th data-k="vnd">Vendedor</th>
+        <th data-k="b" class="num">Neto período</th><th data-k="yoy" class="num">YoY %</th>
+        <th data-k="v" class="num">Volumen</th><th data-k="d" class="num">Docs</th><th data-k="last">Último mes</th></tr></thead>
+        <tbody id="tb-cli"></tbody>
+      </table></div>
+    </div>
+    <div class="card chart-card" id="cli-detail" hidden>
+      <div class="table-head">
+        <h3 id="cli-detail-title">Historia del cliente</h3>
+        <button class="btn ghost" id="btn-cli-close">✕ Cerrar</button>
+      </div>
+      <div class="grid-2">
+        <div class="chart-box"><canvas id="ch-clihist"></canvas></div>
+        <div class="cli-meta" id="cli-meta"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRODUCTOS ============ -->
+  <section class="tabpane" id="pane-productos">
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Ventas por línea (neto mensual)</h3>
+        <div class="chart-box tall"><canvas id="ch-lineatrend"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Escala de precios <small>precio unitario mediano por presentación (ARS)</small></h3>
+        <div class="chart-box tall"><canvas id="ch-precio"></canvas></div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Volumen por presentación <small>(unid. en el período)</small></h3>
+        <div class="chart-box"><canvas id="ch-presvol"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Ventas por sabor <small>(neto · top 12)</small></h3>
+        <div class="chart-box"><canvas id="ch-sabor"></canvas></div>
+      </div>
+    </div>
+    <div class="card table-card">
+      <div class="table-head"><h3>Top 30 artículos <small>(período filtrado)</small></h3></div>
+      <div class="table-wrap"><table class="tbl">
+        <thead><tr><th>Artículo</th><th>Línea</th><th>Presentación</th><th class="num">Neto</th>
+        <th class="num">Volumen</th><th class="num">Clientes</th><th class="num">Docs</th><th class="num">YoY %</th></tr></thead>
+        <tbody id="tb-art"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ TERRITORIO ============ -->
+  <section class="tabpane" id="pane-territorio">
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Ventas por provincia <small>(neto · período filtrado)</small></h3>
+        <div class="chart-box tall"><canvas id="ch-prov"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Top 15 localidades</h3>
+        <div class="chart-box tall"><canvas id="ch-loc"></canvas></div>
+      </div>
+    </div>
+    <div class="card table-card">
+      <div class="table-head"><h3>Detalle por provincia</h3></div>
+      <div class="table-wrap"><table class="tbl" id="tbl-prov">
+        <thead><tr><th data-k="prov">Provincia</th><th data-k="b" class="num">Neto</th><th data-k="v" class="num">Volumen</th>
+        <th data-k="pct" class="num">% total</th></tr></thead>
+        <tbody id="tb-prov"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <!-- ============ DATOS ============ -->
+  <section class="tabpane" id="pane-datos">
+    <div class="grid-2">
+      <div class="card">
+        <h3>Origen y cobertura</h3>
+        <ul class="kv" id="kv-origen"></ul>
+      </div>
+      <div class="card">
+        <h3>Calidad de datos detectada <small>y cómo se trató</small></h3>
+        <ul class="kv" id="kv-calidad"></ul>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Ajustes contables excluidos de los cubes <small>"DIFERENCIAS/AJUSTES" (cliente RECICLAR S.A / vnd CASTILLO 2)</small></h3>
+        <div class="chart-box"><canvas id="ch-ajustes"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Métrica: definición</h3>
+        <ul class="kv" id="kv-metricas"></ul>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span id="foot-gen"></span> · Fuente: <span id="foot-src"></span> ·
+    Los valores de Jul-26 son parciales (desde el 20/07). Ajustes contables excluidos por defecto.
+  </footer>
+</main>
+
+<!-- modal metodología -->
+<div class="modal" id="modal-metodologia" hidden>
+  <div class="modal-card">
+    <div class="table-head"><h3>Calidad de datos y metodología</h3><button class="btn ghost" id="btn-modal-close">✕</button></div>
+    <div id="modal-body" class="modal-body"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

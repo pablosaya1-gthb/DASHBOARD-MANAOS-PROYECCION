@@ -1,0 +1,43 @@
+CÓMO ACTUALIZAR EL TABLERO DE PROYECCIÓN (2025-26)
+===================================================
+
+El tablero lee un archivo generado: data/proyeccion.json
+NO hay que tocar HTML/CSS/JS: solo regenerar ese JSON con el CSV nuevo.
+
+PASO 1 — Tené el CSV nuevo
+--------------------------
+El mismo formato de "Proyección larga_2025-26.csv" (separador ;, decimales con coma o punto).
+Puede ir directo o en un ZIP.
+
+PASO 2 — Subirlo al repo (opcional, para dejarlo versionado)
+------------------------------------------------------------
+En GitHub, rama arena/02a03426-dashboard-manaos-proye:
+  Add file → Upload files → arrastrar el CSV (o zip) → Commit.
+
+PASO 3 — Regenerar (en una compu con Python 3)
+----------------------------------------------
+  pip install polars            (solo la primera vez)
+  python3 scripts/procesar_proyeccion.py RUTA_AL_CSV_O_ZIP
+
+  Ejemplos:
+    python3 scripts/procesar_proyeccion.py datos/proyeccion_larga_2025-26.csv
+    python3 scripts/procesar_proyeccion.py "Proyección larga_2025-26.zip"
+
+Si no pasás nada, busca solo en: datos/proyeccion_larga_2025-26.csv o la raíz.
+
+El script imprime una validación al final (bruto/neto totales y ajustes excluidos).
+Si los totales no cuadran con tu ERP, revisá antes de publicar.
+
+PASO 4 — Publicar
+-----------------
+Subir (commit) el data/proyeccion.json regenerado a la rama y recargar el tablero.
+Si usan GitHub Pages sobre esta rama, se actualiza solo.
+
+NOTAS
+-----
+- Si la próxima temporada trae 21-24 meses (MES 21 en adelante), hay que extender
+  MES_LABELS en scripts/procesar_proyeccion.py (lista mes_labels) y el mes_parcial.
+- Los ajustes contables ("DIFERENCIAS/AJUSTES") se excluyen solos del cube comercial.
+- Jul-2026 quedó parcial (desde el 20/07). Si llegan los días faltantes, el tablero
+  se corrige solo al regenerar (se quita el flag de parcial si la carga lo trae completo:
+  revisar MES_PARCIAL en el script si el mes ya está completo).
