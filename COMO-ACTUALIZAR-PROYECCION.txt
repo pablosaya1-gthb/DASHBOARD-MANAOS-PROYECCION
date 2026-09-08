@@ -13,6 +13,24 @@ RECETA CORTA (copiar y pegar)
 Y después subir (commit) el data/proyeccion.json regenerado.
 
 
+¿DESDE DÓNDE SE CORRE ESTO?
+---------------------------
+A) SIN INSTALAR NADA (lo más fácil): GitHub → pestaña "Actions" →
+   "Actualizar datos del tablero" → botón "Run workflow". Hace todo solo
+   (baja el archivo, regenera el JSON y lo commitea).
+   El botón aparece cuando el workflow ya está en la rama main.
+
+B) GOOGLE COLAB: abrir notebooks/actualizar_datos_colab.ipynb en
+   colab.research.google.com y correr las celdas con el botón ▶.
+   Sirve también para tomar el xlsx directo de tu Google Drive.
+
+C) GITHUB CODESPACES: botón verde "Code" → "Codespaces" → "Create".
+   Es una terminal Linux dentro del navegador: los comandos van tal cual.
+
+D) TU COMPUTADORA: PowerShell en Windows (usar "py" en vez de "python3")
+   o Terminal en Mac/Linux, parado en la carpeta del repo.
+
+
 PASO 1 — Conseguir el archivo
 -----------------------------
 Fuente oficial (Drive, ~158 MB):

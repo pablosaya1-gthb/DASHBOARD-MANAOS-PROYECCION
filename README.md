@@ -104,10 +104,31 @@ Opciones del ETL:
 Formatos aceptados: `.xlsx` / `.xlsm`, `.csv` (`;`, cp1252) y `.zip` con cualquiera
 de los dos adentro. Si no pasás ruta, busca solo en `datos/` y en la raíz.
 
+### ¿Dónde corro estos comandos?
+
+Cuatro opciones, de menos a más instalación:
+
+| Dónde | Qué necesitás | Cómo |
+|---|---|---|
+| **GitHub Actions** (recomendado) | solo el navegador | Pestaña **Actions** → *Actualizar datos del tablero* → **Run workflow**. Baja el xlsx, regenera el JSON y lo commitea solo. El botón aparece cuando el workflow está en la rama `main` (mergear el PR). |
+| **Google Colab** | cuenta de Google | Abrir `notebooks/actualizar_datos_colab.ipynb` en [Colab](https://colab.research.google.com/) y correr las celdas. Puede tomar el archivo del link **o** directo de tu Drive. |
+| **GitHub Codespaces** | cuenta de GitHub | Botón verde **Code → Codespaces → Create**. Te da una terminal Linux en el navegador; ahí sí van los comandos tal cual. |
+| **Tu PC** | Python 3 instalado | Windows: **PowerShell** (`python` en vez de `python3`). Mac/Linux: **Terminal**. Primero `cd` a la carpeta del repo. |
+
+En Windows, si `python` no existe, instalalo desde <https://www.python.org/downloads/>
+tildando *"Add Python to PATH"*, y usá:
+
+```powershell
+py -m pip install polars fastexcel
+py scripts\descargar_datos.py
+py scripts\procesar_proyeccion.py datos\proyeccion_larga_2025-26.xlsx
+```
+
 ### Verificar sin tener el archivo
 
 ```bash
 python3 scripts/test_etl.py     # dataset sintético → CSV, XLSX y --via-csv deben dar lo mismo
+python3 scripts/test_ui_json.py # valida el data/proyeccion.json publicado (sin dependencias)
 node scripts/test_ui.mjs        # corre app.js contra el JSON real en un DOM simulado (npm i jsdom)
 ```
 
@@ -121,7 +142,10 @@ data/proyeccion.json                → cubes pre-agregados (~4 MB, generado)
 scripts/procesar_proyeccion.py      → ETL: XLSX/CSV/ZIP → JSON (documentado)
 scripts/descargar_datos.py          → baja el xlsx del link de Drive a datos/
 scripts/test_etl.py                 → test de humo del ETL con datos sintéticos
+scripts/test_ui_json.py             → valida el JSON generado (forma y cuadratura)
 scripts/test_ui.mjs                 → test de humo del tablero (jsdom, sin navegador)
+notebooks/actualizar_datos_colab.ipynb → actualizar los datos desde Google Colab
+.github/workflows/actualizar-datos.yml → actualizar los datos desde la web (Actions)
 datos/                              → fuente descargada (ignorada por git)
 ```
 

@@ -1,0 +1,85 @@
+name: Actualizar datos del tablero
+
+# Corre el ETL completo desde el navegador: baja el xlsx de Drive, regenera
+# data/proyeccion.json y lo commitea en la rama elegida.
+#
+# Cómo usarlo:
+#   GitHub → pestaña Actions → "Actualizar datos del tablero" → Run workflow
+#   → elegir la rama → Run.
+#
+# Nota: GitHub solo muestra el botón "Run workflow" si este archivo existe en
+# la rama por defecto (main). Si todavía no está ahí, mergeá el PR primero.
+
+on:
+  workflow_dispatch:
+    inputs:
+      link:
+        description: "Link (o id) del archivo de Drive"
+        required: false
+        default: "https://docs.google.com/spreadsheets/d/1BxaNGBMDiXbSowF8so1JB1ABMs6ibRra/edit?usp=sharing"
+      modo:
+        description: "Motor de lectura del Excel"
+        required: false
+        type: choice
+        default: rapido
+        options:
+          - rapido
+          - poca-ram
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Traer el repo
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install --quiet polars fastexcel openpyxl
+
+      - name: Descargar el archivo de Drive
+        env:
+          LINK: ${{ inputs.link }}
+        run: python3 scripts/descargar_datos.py "$LINK"
+
+      - name: Regenerar data/proyeccion.json
+        env:
+          MODO: ${{ inputs.modo }}
+        run: |
+          ARCH=$(ls -S datos/*.xlsx datos/*.xlsm datos/*.csv 2>/dev/null | head -1)
+          echo "Procesando: $ARCH"
+          if [ "$MODO" = "poca-ram" ]; then
+            python3 scripts/procesar_proyeccion.py "$ARCH" --via-csv
+          else
+            python3 scripts/procesar_proyeccion.py "$ARCH"
+          fi
+
+      - name: Validar el JSON generado
+        run: python3 scripts/test_ui_json.py
+
+      - name: Guardar el JSON como artefacto descargable
+        uses: actions/upload-artifact@v4
+        with:
+          name: proyeccion-json
+          path: data/proyeccion.json
+          retention-days: 30
+
+      - name: Commitear el JSON nuevo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- data/proyeccion.json; then
+            echo "El JSON no cambió: no hay nada que commitear."
+            exit 0
+          fi
+          git add data/proyeccion.json
+          git commit -m "Datos del tablero actualizados desde Drive ($(date +%Y-%m-%d))"
+          git push
