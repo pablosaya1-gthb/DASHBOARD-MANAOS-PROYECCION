@@ -90,8 +90,10 @@
   <!-- ============ TABS ============ -->
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="general">General</button>
+    <button class="tab" data-tab="proyeccion">Proyección</button>
     <button class="tab" data-tab="vendedores">Vendedores</button>
     <button class="tab" data-tab="clientes">Clientes</button>
+    <button class="tab" data-tab="alertas">Alertas</button>
     <button class="tab" data-tab="productos">Productos</button>
     <button class="tab" data-tab="territorio">Territorio</button>
     <button class="tab" data-tab="datos">Datos</button>
@@ -131,6 +133,73 @@
     </div>
   </section>
 
+  <!-- ============ PROYECCIÓN ============ -->
+  <section class="tabpane" id="pane-proyeccion">
+    <div class="card ctrl-card">
+      <div class="f-group">
+        <span class="f-title">Escenario</span>
+        <div class="presets" id="esc-ctrl">
+          <button class="chip" data-esc="cons">Conservador</button>
+          <button class="chip active" data-esc="base">Base</button>
+          <button class="chip" data-esc="opt">Optimista</button>
+        </div>
+      </div>
+      <div class="f-group">
+        <span class="f-title">Horizonte</span>
+        <div class="presets" id="hz-ctrl">
+          <button class="chip" data-hz="3">3 meses</button>
+          <button class="chip active" data-hz="6">6 meses</button>
+          <button class="chip" data-hz="12">12 meses</button>
+        </div>
+      </div>
+      <div class="f-group grow">
+        <span class="f-title">Método</span>
+        <p class="filter-note" id="proj-note"></p>
+      </div>
+    </div>
+
+    <div class="kpis" id="proj-kpis"></div>
+
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Real vs proyectado <small>neto mensual · barras rayadas = proyección</small></h3>
+        <div class="chart-box tall"><canvas id="ch-proy"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Acumulado móvil 12 meses <small>real y proyectado</small></h3>
+        <div class="chart-box tall"><canvas id="ch-proyacum"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card table-card">
+      <div class="table-head"><h3>Proyección mes a mes <small>los tres escenarios</small></h3></div>
+      <div class="table-wrap"><table class="tbl" id="tbl-proy">
+        <thead><tr><th>Mes</th><th class="num">Año anterior</th><th class="num">Conservador</th>
+        <th class="num">Base</th><th class="num">Optimista</th><th class="num">Δ% vs año ant. (base)</th></tr></thead>
+        <tbody id="tb-proy"></tbody>
+      </table></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card table-card">
+        <div class="table-head"><h3>Proyección por vendedor <small>(top 15, escenario elegido)</small></h3></div>
+        <div class="table-wrap"><table class="tbl" id="tbl-proyvnd">
+          <thead><tr><th>Vendedor</th><th class="num">Año anterior</th><th class="num">Proyectado</th>
+          <th class="num">Δ%</th><th class="num">Ritmo aplicado</th></tr></thead>
+          <tbody id="tb-proyvnd"></tbody>
+        </table></div>
+      </div>
+      <div class="card table-card">
+        <div class="table-head"><h3>Proyección por línea</h3></div>
+        <div class="table-wrap"><table class="tbl" id="tbl-proylin">
+          <thead><tr><th>Línea</th><th class="num">Año anterior</th><th class="num">Proyectado</th>
+          <th class="num">Δ%</th><th class="num">% del total</th></tr></thead>
+          <tbody id="tb-proylin"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ VENDEDORES ============ -->
   <section class="tabpane" id="pane-vendedores">
     <div class="grid-2">
@@ -143,6 +212,20 @@
         <div class="chart-box tall"><canvas id="ch-vndtrend"></canvas></div>
       </div>
     </div>
+    <div class="card chart-card">
+      <div class="table-head">
+        <h3>Equipos · 2º vendedor <small>(bruto por equipo · este cuadro solo respeta el filtro de período)</small></h3>
+      </div>
+      <div class="grid-2">
+        <div class="chart-box"><canvas id="ch-eqrank"></canvas></div>
+        <div class="table-wrap eq-wrap"><table class="tbl" id="tbl-eq">
+          <thead><tr><th>Equipo</th><th class="num">Bruto</th><th class="num">YoY %</th>
+          <th class="num">Volumen</th><th class="num">% total</th><th>Vendedores</th></tr></thead>
+          <tbody id="tb-eq"></tbody>
+        </table></div>
+      </div>
+    </div>
+
     <div class="card table-card">
       <div class="table-head">
         <h3>Detalle por vendedor</h3>
@@ -190,6 +273,78 @@
         <div class="chart-box"><canvas id="ch-clihist"></canvas></div>
         <div class="cli-meta" id="cli-meta"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ ALERTAS ============ -->
+  <section class="tabpane" id="pane-alertas">
+    <div class="card ctrl-card">
+      <div class="f-group">
+        <span class="f-title">Ventana de comparación</span>
+        <div class="presets" id="win-ctrl">
+          <button class="chip" data-win="1">Último mes</button>
+          <button class="chip" data-win="2">2 meses</button>
+          <button class="chip active" data-win="3">3 meses</button>
+          <button class="chip" data-win="6">6 meses</button>
+        </div>
+      </div>
+      <div class="f-group">
+        <span class="f-title">Comparar contra</span>
+        <div class="presets" id="cmp-ctrl">
+          <button class="chip active" data-cmp="prev">Ventana anterior</button>
+          <button class="chip" data-cmp="yoy">Año anterior</button>
+        </div>
+      </div>
+      <div class="f-group">
+        <span class="f-title">Caída mínima para alertar</span>
+        <div class="presets" id="drop-ctrl">
+          <button class="chip" data-drop="0.2">20 %</button>
+          <button class="chip active" data-drop="0.35">35 %</button>
+          <button class="chip" data-drop="0.5">50 %</button>
+        </div>
+      </div>
+      <div class="f-group grow">
+        <span class="f-title">Cómo se calcula</span>
+        <p class="filter-note" id="alert-note"></p>
+      </div>
+    </div>
+
+    <div class="kpis" id="alert-kpis"></div>
+
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>Mayores caídas <small>top 12 clientes por pérdida en $ (bruto)</small></h3>
+        <div class="chart-box tall"><canvas id="ch-caidas"></canvas></div>
+      </div>
+      <div class="card chart-card">
+        <h3>Clientes perdidos y en riesgo por vendedor <small>cantidad</small></h3>
+        <div class="chart-box tall"><canvas id="ch-alertvnd"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card table-card">
+      <div class="table-head">
+        <h3>Clientes a trabajar</h3>
+        <div class="presets" id="cat-ctrl">
+          <button class="chip active" data-cat="todas">Todas</button>
+          <button class="chip" data-cat="perdido">Perdidos</button>
+          <button class="chip" data-cat="riesgo">En riesgo</button>
+          <button class="chip" data-cat="recuperado">Recuperados</button>
+          <button class="chip" data-cat="nuevo">Nuevos</button>
+          <button class="chip" data-cat="creciendo">Creciendo</button>
+        </div>
+        <input class="search" id="search-alert" placeholder="Buscar cliente…">
+        <button class="btn ghost dark" id="btn-alert-csv" title="Descargar la tabla filtrada">⬇ CSV</button>
+      </div>
+      <div class="table-wrap"><table class="tbl" id="tbl-alert">
+        <thead><tr><th data-k="c">Cliente</th><th data-k="cat">Estado</th><th data-k="vnd">Vendedor</th>
+        <th data-k="prov">Provincia</th><th data-k="lastLbl">Última compra</th>
+        <th data-k="act" class="num">Ventana actual</th><th data-k="prev" class="num">Ventana previa</th>
+        <th data-k="delta" class="num">Δ $</th><th data-k="pct" class="num">Δ %</th>
+        <th data-k="tot" class="num">Total temporada</th></tr></thead>
+        <tbody id="tb-alert"></tbody>
+      </table></div>
+      <p class="filter-note" id="alert-count"></p>
     </div>
   </section>
 
@@ -273,7 +428,7 @@
 
   <footer class="foot">
     <span id="foot-gen"></span> · Fuente: <span id="foot-src"></span> ·
-    Los valores de Jul-26 son parciales (desde el 20/07). Ajustes contables excluidos por defecto.
+    <span id="nota-parcial">Ajustes contables excluidos por defecto.</span>
   </footer>
 </main>
 
