@@ -45,14 +45,36 @@ Opción C — GitHub Pages: configurar Pages sobre esta rama (archivos en la ra�
 
 ## Cómo actualizar los datos
 
-1. Subir el CSV nuevo al repo (o dejarlo en `datos/proyeccion_larga_2025-26.csv`).
-   Acepta también `.zip` con el CSV dentro.
-2. Ejecutar:
-   ```
-   python3 scripts/procesar_proyeccion.py [ruta_al_csv_o_zip]
-   ```
-3. Listo: `data/proyeccion.json` se regenera y el tablero carga los datos nuevos.
-   (Requiere Python 3 + `pip install polars`.)
+La fuente oficial es el archivo de Drive **`Proyección larga_2025-26.xlsx`** (~158 MB):
+<https://docs.google.com/spreadsheets/d/1BxaNGBMDiXbSowF8so1JB1ABMs6ibRra/edit?usp=sharing>
+
+```bash
+pip install polars fastexcel          # una sola vez  (openpyxl si vas a usar --via-csv)
+
+python3 scripts/descargar_datos.py    # baja el xlsx del link a datos/
+python3 scripts/procesar_proyeccion.py datos/proyeccion_larga_2025-26.xlsx
+```
+
+Eso regenera `data/proyeccion.json` y el tablero ya muestra los datos nuevos
+(no hay que tocar HTML/CSS/JS). Después: commit del JSON y listo.
+
+Opciones del ETL:
+
+| Opción | Para qué |
+|---|---|
+| `--hoja NOMBRE` | elegir la hoja del Excel (por defecto, la primera) |
+| `--via-csv` | convierte el Excel a CSV en streaming antes de procesar: mucha menos RAM (requiere `openpyxl`). Recomendado en máquinas con < 8 GB |
+| `--salida RUTA` | escribir el JSON en otro lado (útil para comparar contra el actual) |
+
+Formatos aceptados: `.xlsx` / `.xlsm`, `.csv` (`;`, cp1252) y `.zip` con cualquiera
+de los dos adentro. Si no pasás ruta, busca solo en `datos/` y en la raíz.
+
+### Verificar sin tener el archivo
+
+```bash
+python3 scripts/test_etl.py     # dataset sintético → CSV, XLSX y --via-csv deben dar lo mismo
+node scripts/test_ui.mjs        # corre app.js contra el JSON real en un DOM simulado (npm i jsdom)
+```
 
 ## Estructura
 
@@ -61,13 +83,17 @@ index.html                          → estructura del tablero
 tablero.css                         → estilos (tema claro, responsive)
 app.js                              → lógica: filtros, motor de cálculo, charts, tablas
 data/proyeccion.json                → cubes pre-agregados (~4 MB, generado)
-scripts/procesar_proyeccion.py      → ETL: CSV → JSON (documentado)
-datos/                              → (opcional) fuente CSV
+scripts/procesar_proyeccion.py      → ETL: XLSX/CSV/ZIP → JSON (documentado)
+scripts/descargar_datos.py          → baja el xlsx del link de Drive a datos/
+scripts/test_etl.py                 → test de humo del ETL con datos sintéticos
+scripts/test_ui.mjs                 → test de humo del tablero (jsdom, sin navegador)
+datos/                              → fuente descargada (ignorada por git)
 ```
 
 ## Arquitectura de datos
 
-El CSV original pesa ~290 MB (751.435 renglones, 38 columnas). No se carga en el navegador:
+El archivo original pesa ~158 MB en xlsx / ~290 MB en csv (751.435 renglones, 38 columnas).
+No se carga en el navegador:
 el ETL (polars) lo limpia y pre-agrega en **cubes densos** (mes × vendedor × provincia × línea,
 etc.) de ~4 MB. El navegador recorta y suma en cliente en <10 ms.
 
@@ -77,17 +103,23 @@ Métricas por celda del cube principal: `bruto, neto, volumen, devoluciones, bon
 
 - Decimales con coma y punto mezclados → normalizados.
 - 237 filas con "% imp. interno" = 869,56 (error de coma) → corregidas a 8,6956.
-- 22.294 renglones con total en blanco → no suman (<3 % del total).
+- 22.294 renglones quedaban en `null` al sumar. **Corregido (sep-2026):** el parser numérico
+  usaba `\1\2` como reemplazo de regex, que polars no soporta, así que **todo importe con
+  separador de miles** (`1.234,50`) se convertía en nulo y no sumaba. El parser nuevo resuelve
+  es-AR / en-US / negativos entre paréntesis o con signo al final.
+  ⚠️ **Hay que regenerar `data/proyeccion.json`** con el xlsx para que los totales incorporen
+  esos renglones (el JSON publicado todavía es el de la versión con el bug).
 - 1.026 renglones de **DIFERENCIAS/AJUSTES** (contables, usuario CASTILLO 2 / "RECICLAR S.A")
   → excluidos de los cubes comerciales; se exhiben en el panel Datos.
-- **Jul-2026 es parcial**: la carga trae datos solo desde el 20/07 (marcado en el tablero;
-  excluirlo de comparaciones).
+- **Jul-2026 es parcial**: la carga trae datos solo desde el 20/07. El ETL ahora **detecta solo**
+  los meses incompletos y el tablero los marca (badge en el header, ⚠ en el filtro de período,
+  barra naranja en la serie mensual).
 - Fórmula validada: `neto × (1 + IVA% + imp.int.%) = bruto` exacta en el 96,5 % de renglones.
 - `Índice` no es único → no se usa como clave.
 
 ## Fuente
 
-`Proyección larga_2025-26.csv` — separador `;`, codificación Windows-1252, decimales con
+`Proyección larga_2025-26.xlsx` (Drive) o su export `.csv` — separador `;`, codificación Windows-1252, decimales con
 coma o punto. Columnas clave: `MES` (1-20 = mes de temporada), `Fecha`, `Vendedor`,
 `Vendedor #2`, `Provincia`, `Línea`, `Tipo artículo`, `Presentación`, `Sabor`,
 `Cantidad`, `Precio renglón`, `Total m. local` (neto), `Total renglón` (bruto),

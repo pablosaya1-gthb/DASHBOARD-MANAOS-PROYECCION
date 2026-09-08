@@ -34,6 +34,18 @@ const PALETTE = ["#0f4c81", "#e8590c", "#2f9e44", "#9c36b5", "#1098ad", "#e8890c
 /* ---------------- data ---------------- */
 let D = null;
 let charts = {};
+/* Cantidad de meses de la temporada: la define el JSON (meta.mes_labels),
+   así el tablero acompaña al ETL si la carga trae más o menos meses. */
+let NM = 20;
+/* Meses marcados como parciales por el ETL (meta.mes_parcial = {"19": "Solo desde…"}).
+   Se usan para avisar en el header, en el filtro de meses y en los charts. */
+let PARC = new Map();          // índice 0-based -> motivo
+const esParcial = m => PARC.has(m);
+function parcialTexto(sep = " · ") {
+  if (!PARC.size) return "sin meses parciales";
+  return [...PARC.entries()].sort((a, b) => a[0] - b[0])
+    .map(([m, t]) => `${D.meta.mes_labels[m] || ("MES " + (m + 1))}: ${t.toLowerCase()}`).join(sep);
+}
 
 const baseOpts = (extra = {}) => Object.assign({
   responsive: true, maintainAspectRatio: false,
@@ -88,7 +100,7 @@ function computeAll() {
   const lineSet = state.linea;
   const mesSet = state.mes;
   const T = { b: 0, n: 0, v: 0, dev: 0, bo: 0 };
-  const perMes = range(20).map(() => ({ b: 0, n: 0, v: 0, dev: 0, bo: 0 }));
+  const perMes = range(NM).map(() => ({ b: 0, n: 0, v: 0, dev: 0, bo: 0 }));
   const perVnd = new Map(), perProv = new Map(), perLinea = new Map();
   const C1 = D.C1;
   for (const m of mesSet) {
@@ -120,7 +132,7 @@ function computeAll() {
   }
   const vndNames = effVndNames(), provNm = provNames();
   let cliAct = 0;
-  const cliMes = range(20).map(() => 0);
+  const cliMes = range(NM).map(() => 0);
   for (const c of D.C5) {
     if (c.vnd && !vndNames.has(c.vnd)) continue;
     if (c.prov && !provNm.has(c.prov)) continue;
@@ -147,7 +159,7 @@ function renderKPIs(C) {
   $("#k-vol").textContent = fmtInt(T.v);
   $("#k-vol-sub").innerHTML = deltaHTML(yoyOver(m => C.perMes[m].v), "vs 2025");
   $("#k-cli").textContent = fmtInt(C.cliAct);
-  $("#k-cli-sub").textContent = state.mes.size === 20 ? "en toda la temporada" : `en ${state.mes.size} mes(es)`;
+  $("#k-cli-sub").textContent = state.mes.size === NM ? "en toda la temporada" : `en ${state.mes.size} mes(es)`;
   const docsAprox = state.prov.size < D.meta.provs.length || state.linea.size < D.meta.lineas.length;
   $("#k-docs").textContent = fmtInt(C.docs);
   $("#k-docs-sub").textContent = docsAprox ? "≈ (docs por vendedor/mes)" : "comprobantes distintos";
@@ -244,7 +256,7 @@ function decSet(str, max) {
   return new Set(str.split(".").map(Number).filter(i => i >= 0 && i < max));
 }
 function writeURL() {
-  const p = ["mes=" + encSet(state.mes, 20)];
+  const p = ["mes=" + encSet(state.mes, NM)];
   const v = encSet(state.vnd, D.meta.vnds.length); if (v) p.push("vnd=" + v);
   const v2 = encSet(state.vnd2, D.meta.vnd2s.length); if (v2) p.push("v2=" + v2);
   const pr = encSet(state.prov, D.meta.provs.length); if (pr) p.push("prov=" + pr);
@@ -257,7 +269,7 @@ function readURL() {
   if (!h) return;
   const g = {};
   for (const kv of h.split("&")) { const i = kv.indexOf("="); g[kv.slice(0, i)] = kv.slice(i + 1); }
-  state.mes = decSet(g.mes, 20);
+  state.mes = decSet(g.mes, NM);
   if (g.vnd != null) state.vnd = decSet(g.vnd, D.meta.vnds.length);
   if (g.v2 != null) state.vnd2 = decSet(g.v2, D.meta.vnd2s.length);
   if (g.prov != null) state.prov = decSet(g.prov, D.meta.provs.length);
@@ -277,20 +289,27 @@ function renderGeneral(C) {
       labels: idx.map(m => mL[m]),
       datasets: [
         { type: "bar", label: "Neto", data: idx.map(m => C.perMes[m].n),
-          backgroundColor: "rgba(15,76,129,.75)", borderRadius: 5, maxBarThickness: 34 },
+          backgroundColor: idx.map(m => esParcial(m) ? "rgba(232,89,12,.45)" : "rgba(15,76,129,.75)"),
+          borderColor: idx.map(m => esParcial(m) ? "#e8590c" : "transparent"),
+          borderWidth: idx.map(m => esParcial(m) ? 1.5 : 0),
+          borderRadius: 5, maxBarThickness: 34 },
         { type: "line", label: "Mismo mes 2025", data: prevLine,
           borderColor: "#e8590c", backgroundColor: "#e8590c", borderDash: [5, 4],
           pointRadius: 3, tension: .25, spanGaps: false }
       ]
     },
     options: baseOpts({ plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } },
-      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y == null ? "—" : fmtARS(c.parsed.y)}` } } } })
+      tooltip: { callbacks: {
+        label: c => `${c.dataset.label}: ${c.parsed.y == null ? "—" : fmtARS(c.parsed.y)}`,
+        afterLabel: c => (c.datasetIndex === 0 && esParcial(idx[c.dataIndex]))
+          ? "⚠ mes parcial: " + PARC.get(idx[c.dataIndex]) : undefined
+      } } } })
   });
 
   // acumulada de temporada
   const acc25 = [], acc26 = [], acc25c = [];
   let a25 = 0, a26 = 0, a25c = 0;
-  for (let m = 0; m < 20; m++) {
+  for (let m = 0; m < NM; m++) {
     if (m <= 11) a25 += C.perMes[m].n;
     acc25[m] = m <= 11 ? a25 : null;
     if (m >= 12) { a26 += C.perMes[m].n; a25c += C.perMes[m - 12].n; }
@@ -403,13 +422,13 @@ function renderVndTrend() {
   const ds = [...state.trend].slice(0, 6).map((name, k) => {
     const vi = D.meta.vnds.indexOf(name);
     if (vi < 0) return null;
-    return { label: name, data: range(20).map(m => (state.mes.has(m) ? vndMonthNet(vi, m) : null)),
+    return { label: name, data: range(NM).map(m => (state.mes.has(m) ? vndMonthNet(vi, m) : null)),
       borderColor: PALETTE[k % PALETTE.length], backgroundColor: PALETTE[k % PALETTE.length],
       tension: .25, pointRadius: 2, spanGaps: true };
   }).filter(Boolean);
   newChart("ch-vndtrend", {
     type: "line",
-    data: { labels: mL, datasets: ds.length ? ds : [{ label: "clic en el ranking para comparar", data: range(20).map(() => null), borderColor: "#ced4da", borderDash: [4, 4], pointRadius: 0 }] },
+    data: { labels: mL, datasets: ds.length ? ds : [{ label: "clic en el ranking para comparar", data: range(NM).map(() => null), borderColor: "#ced4da", borderDash: [4, 4], pointRadius: 0 }] },
     options: baseOpts()
   });
 }
@@ -464,7 +483,7 @@ function renderClientes() {
       plugins: { legend: { display: false }, tooltip: { callbacks: { title: items => "Top " + items[0].label, label: c => fmtPct(c.parsed.y) } } } })
   });
   // nuevos por mes
-  const nuevos = range(20).map(m => list.filter(c => c.first === m + 1).length);
+  const nuevos = range(NM).map(m => list.filter(c => c.first === m + 1).length);
   newChart("ch-nuevos", {
     type: "bar",
     data: { labels: D.meta.mes_labels, datasets: [{ data: nuevos,
@@ -494,14 +513,14 @@ function showCliDetail(name) {
     type: "bar",
     data: { labels: mL, datasets: [
       { label: "Neto", data: c.h.map(h => h[0]),
-        backgroundColor: range(20).map(m => state.mes.has(m) ? "rgba(15,76,129,.8)" : "rgba(15,76,129,.22)"),
+        backgroundColor: range(NM).map(m => state.mes.has(m) ? "rgba(15,76,129,.8)" : "rgba(15,76,129,.22)"),
         borderRadius: 4, maxBarThickness: 24 }
     ] },
     options: baseOpts({ plugins: { legend: { display: false }, tooltip: { callbacks: { label: cc => fmtARS(cc.parsed.y) } } } })
   });
   const totB = c.h.reduce((s, h) => s + h[0], 0);
   let cur = 0, prev = 0;
-  for (let m = 12; m < 20; m++) { cur += c.h[m][0]; prev += c.h[m - 12][0]; }
+  for (let m = 12; m < NM; m++) { cur += c.h[m][0]; prev += c.h[m - 12][0]; }
   const yoy = prev > 0 ? (cur - prev) / prev : null;
   $("#cli-meta").innerHTML = `
     <div class="row"><span>Provincia</span><b>${c.prov || "—"}</b></div>
@@ -521,7 +540,7 @@ function renderProductos(C) {
   const mL = D.meta.mes_labels;
   // tendencia por línea (C1, todos los filtros)
   const ds = D.meta.lineas.map((n, i) => {
-    const data = range(20).map(m => {
+    const data = range(NM).map(m => {
       if (!state.mes.has(m) || !state.linea.has(i)) return null;
       let s = 0;
       for (const vi of C.eff) for (const pi of state.prov) { const cell = D.C1[m][vi][pi][i]; if (cell) s += cell[1]; }
@@ -537,7 +556,7 @@ function renderProductos(C) {
   const presMain = D.meta.pres.filter(p => ["2250cc", "3000cc", "1500cc", "2000cc", "6000cc", "0500cc"].includes(p));
   const pds = presMain.map((p, k) => {
     const pi = D.meta.pres.indexOf(p);
-    return { label: p, data: range(20).map(m => (state.mes.has(m) && D.C4b[m][pi]) ? D.C4b[m][pi].pm : null),
+    return { label: p, data: range(NM).map(m => (state.mes.has(m) && D.C4b[m][pi]) ? D.C4b[m][pi].pm : null),
       borderColor: PALETTE[k % PALETTE.length], backgroundColor: PALETTE[k % PALETTE.length], tension: .25, pointRadius: 2, spanGaps: true };
   });
   newChart("ch-precio", {
@@ -600,12 +619,12 @@ function renderDatos(C) {
     ["Archivo fuente", m.fuente],
     ["Generado", m.generado],
     ["Filas de renglón", nfAR.format(m.filas)],
-    ["Período", "Ene 2025 → Ago 2026 (MES 1-20)"],
+    ["Período", `${m.mes_labels[0]} → ${m.mes_labels[m.mes_labels.length - 1]} (MES 1-${m.mes_labels.length})`],
     ["Clientes", nfAR.format(m.n_clientes)],
     ["Artículos", nfAR.format(m.n_articulos)],
     ["Vendedores / 2º", `${m.vnds.length} / ${m.vnd2s.length}`],
     ["Provincias", nfAR.format(m.provs.length)],
-    ["Jul-2026", "PARCIAL: solo desde el 20/07"]
+    ["Meses parciales", PARC.size ? parcialTexto() : "ninguno"]
   ]);
   $("#kv-calidad").innerHTML = rows([
     ["Decimales con coma y punto mezclados", "normalizados en el ETL"],
@@ -645,20 +664,21 @@ function renderModal() {
   $("#modal-body").innerHTML = `
     <h4>1 · Fuente</h4>
     <p><b>${D.meta.fuente}</b> — ${nfAR.format(D.meta.filas)} renglones de venta (detalle de comprobantes),
-    Ene 2025 → Ago 2026. Separador ';', decimales con coma o punto, codificación Windows-1252.</p>
+    ${D.meta.mes_labels[0]} → ${D.meta.mes_labels[NM - 1]}. Origen XLSX del ERP (o CSV con separador ';',
+    decimales con coma o punto, codificación Windows-1252).</p>
     <h4>2 · Limpieza aplicada en el ETL</h4>
     <ul>
       <li><span class="ok">✔</span> Decimales mixtos (coma/punto) normalizados.</li>
       <li><span class="ok">✔</span> ${nfAR.format(q.imp_int_coma_fix)} filas con "% imp. interno" = 869,56 (error de coma) corregidas a 8,6956.</li>
       <li><span class="ok">✔</span> ${nfAR.format(q.ajustes_excluidos)} renglones de <i>DIFERENCIAS/AJUSTES</i> (contables, usuario CASTILLO 2) excluidos de los cubes comerciales; se muestran en el panel Datos.</li>
       <li><span class="warn">⚠</span> ${nfAR.format(q.null_total_renglon)} renglones con total en blanco: no suman (impacto &lt;3 %).</li>
-      <li><span class="warn">⚠</span> Jul-2026 es parcial: la carga trae datos solo desde el 20/07 (marcado en el tablero).</li>
+      ${PARC.size ? `<li><span class="warn">⚠</span> Meses parciales: ${parcialTexto()} — marcados en el tablero (barra naranja) y en el filtro de período.</li>` : ""}
     </ul>
     <h4>3 · Validaciones</h4>
     <ul>
       <li><span class="ok">✔</span> Fórmula <b>neto × (1 + IVA% + imp. int.%) = bruto</b> exacta en el 96,5 % de los renglones.</li>
       <li><span class="ok">✔</span> Sin filas 100 % duplicadas; 375 pares (documento, artículo) repetidos.</li>
-      <li><span class="ok">✔</span> La columna <i>MES</i> coincide con <i>Fecha</i> como índice de temporada (1-12 = 2025, 13-20 = 2026).</li>
+      <li><span class="ok">✔</span> La columna <i>MES</i> coincide con <i>Fecha</i> como índice de temporada (1 = ${D.meta.mes_labels[0]}, ${NM} = ${D.meta.mes_labels[NM - 1]}); si faltara, el ETL la reconstruye desde la fecha.</li>
       <li><span class="warn">⚠</span> <i>Índice</i> no es único (490.121 de 751.435) → no se usa como clave.</li>
       <li><span class="warn">⚠</span> 1.075 renglones con precio unitario &gt; 100.000 (0,14 %) → las métricas de precio usan la mediana.</li>
     </ul>
@@ -686,7 +706,7 @@ function renderAll() {
   if (state.tab === "territorio") renderTerritorio(C);
   if (state.tab === "datos") renderDatos(C);
   const notes = [];
-  if (state.mes.size < 20) notes.push(`<b>Período:</b> ${state.mes.size} de 20 meses`);
+  if (state.mes.size < NM) notes.push(`<b>Período:</b> ${state.mes.size} de ${NM} meses`);
   if (state.vnd.size < D.meta.vnds.length) notes.push(`<b>Vendedores:</b> ${state.vnd.size} seleccionados`);
   if (state.vnd2.size < D.meta.vnd2s.length) notes.push(`<b>Equipo (2º vendedor):</b> aplicado vía mapeo al vendedor principal`);
   if (state.prov.size < D.meta.provs.length) notes.push(`<b>Provincias:</b> ${state.prov.size}`);
@@ -697,6 +717,33 @@ function renderAll() {
 }
 
 /* ---------------- init ---------------- */
+/* Encabezado y notas al pie: se arman con lo que diga el JSON, no a mano. */
+function pintarEncabezado() {
+  const mL = D.meta.mes_labels;
+  const sub = document.querySelector(".subtitle");
+  if (sub) {
+    const txt = `Detalle de ventas por renglón · ${mL[0]} → ${mL[NM - 1]} (${NM} meses de temporada)`;
+    sub.childNodes[0].nodeValue = txt + " ";
+  }
+  const badge = document.getElementById("badge-parcial");
+  if (badge) {
+    if (PARC.size) {
+      badge.textContent = "⚠ " + [...PARC.keys()].sort((a, b) => a - b)
+        .map(m => mL[m]).join(", ") + " parcial" + (PARC.size > 1 ? "es" : "");
+      badge.title = parcialTexto();
+      badge.style.display = "";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+  const nota = document.getElementById("nota-parcial");
+  if (nota) {
+    nota.textContent = PARC.size
+      ? "Meses parciales — " + parcialTexto() + ". Ajustes contables excluidos por defecto."
+      : "Ajustes contables excluidos por defecto.";
+  }
+}
+
 async function init() {
   try {
     D = await (await fetch("data/proyeccion.json", { cache: "no-cache" })).json();
@@ -704,18 +751,23 @@ async function init() {
     document.body.innerHTML = "<div style='padding:40px;font-family:sans-serif'><h2>No se pudo cargar data/proyeccion.json</h2><p>Corré <code>python3 scripts/procesar_proyeccion.py</code> para regenerarlo.</p><p>" + e + "</p></div>";
     return;
   }
+  NM = (D.meta.mes_labels && D.meta.mes_labels.length) || 20;
+  PARC = new Map(Object.entries(D.meta.mes_parcial || {})
+    .map(([k, v]) => [parseInt(k, 10) - 1, v])
+    .filter(([i]) => i >= 0 && i < NM));
+  pintarEncabezado();
   Chart.defaults.font.family = "'Inter', sans-serif";
   Chart.defaults.color = "#4a5a6a";
 
   // defaults explícitos (todo seleccionado)
-  fillSet(state.mes, 20);
+  fillSet(state.mes, NM);
   fillSet(state.vnd, D.meta.vnds.length);
   fillSet(state.vnd2, D.meta.vnd2s.length);
   fillSet(state.prov, D.meta.provs.length);
   fillSet(state.linea, D.meta.lineas.length);
   readURL(); // sobrescribe lo que traiga el hash
 
-  const msMes = makeMS("ms-mes", D.meta.mes_labels, state.mes);
+  const msMes = makeMS("ms-mes", D.meta.mes_labels.map((l, i) => esParcial(i) ? l + " ⚠" : l), state.mes);
   const msVnd = makeMS("ms-vnd", D.meta.vnds, state.vnd);
   const msVnd2 = makeMS("ms-vnd2", D.meta.vnd2s, state.vnd2);
   const msProv = makeMS("ms-prov", D.meta.provs, state.prov);
@@ -726,15 +778,15 @@ async function init() {
   document.querySelectorAll("[data-preset]").forEach(b => {
     b.onclick = () => {
       const p = b.dataset.preset;
-      if (p === "full") fillSet(state.mes, 20);
-      if (p === "2025") { state.mes.clear(); for (let i = 0; i < 12; i++) state.mes.add(i); }
-      if (p === "2026") { state.mes.clear(); for (let i = 12; i < 20; i++) state.mes.add(i); }
-      if (p === "last6") { state.mes.clear(); for (let i = 14; i < 20; i++) state.mes.add(i); }
+      if (p === "full") fillSet(state.mes, NM);
+      if (p === "2025") { state.mes.clear(); for (let i = 0; i < Math.min(12, NM); i++) state.mes.add(i); }
+      if (p === "2026") { state.mes.clear(); for (let i = 12; i < NM; i++) state.mes.add(i); }
+      if (p === "last6") { state.mes.clear(); for (let i = Math.max(0, NM - 6); i < NM; i++) state.mes.add(i); }
       syncFilters();
     };
   });
   $("#btn-reset").onclick = () => {
-    fillSet(state.mes, 20); fillSet(state.vnd, D.meta.vnds.length);
+    fillSet(state.mes, NM); fillSet(state.vnd, D.meta.vnds.length);
     fillSet(state.vnd2, D.meta.vnd2s.length); fillSet(state.prov, D.meta.provs.length);
     fillSet(state.linea, D.meta.lineas.length);
     syncFilters();

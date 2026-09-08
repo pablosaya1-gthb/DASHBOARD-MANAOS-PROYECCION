@@ -2,42 +2,84 @@ CÓMO ACTUALIZAR EL TABLERO DE PROYECCIÓN (2025-26)
 ===================================================
 
 El tablero lee un archivo generado: data/proyeccion.json
-NO hay que tocar HTML/CSS/JS: solo regenerar ese JSON con el CSV nuevo.
+NO hay que tocar HTML/CSS/JS: solo regenerar ese JSON con los datos nuevos.
 
-PASO 1 — Tené el CSV nuevo
+RECETA CORTA (copiar y pegar)
+-----------------------------
+  pip install polars fastexcel
+  python3 scripts/descargar_datos.py
+  python3 scripts/procesar_proyeccion.py datos/proyeccion_larga_2025-26.xlsx
+
+Y después subir (commit) el data/proyeccion.json regenerado.
+
+
+PASO 1 — Conseguir el archivo
+-----------------------------
+Fuente oficial (Drive, ~158 MB):
+  Proyección larga_2025-26.xlsx
+  https://docs.google.com/spreadsheets/d/1BxaNGBMDiXbSowF8so1JB1ABMs6ibRra/edit?usp=sharing
+
+  python3 scripts/descargar_datos.py
+
+Lo deja en datos/proyeccion_larga_2025-26.xlsx.
+También podés bajarlo a mano desde el navegador y dejarlo en datos/, o pasarle
+otro link/id:  python3 scripts/descargar_datos.py OTRO_LINK -o datos/otro.xlsx
+
+Requisito: el archivo tiene que estar compartido como "cualquiera con el enlace".
+
+
+PASO 2 — Regenerar el JSON
 --------------------------
-El mismo formato de "Proyección larga_2025-26.csv" (separador ;, decimales con coma o punto).
-Puede ir directo o en un ZIP.
+  pip install polars fastexcel        (solo la primera vez)
+  python3 scripts/procesar_proyeccion.py datos/proyeccion_larga_2025-26.xlsx
 
-PASO 2 — Subirlo al repo (opcional, para dejarlo versionado)
-------------------------------------------------------------
-En GitHub, rama arena/02a03426-dashboard-manaos-proye:
-  Add file → Upload files → arrastrar el CSV (o zip) → Commit.
+Acepta .xlsx, .xlsm, .csv (separador ; ) y .zip con cualquiera de los dos adentro.
+Si no le pasás ruta, busca solo en datos/ y en la raíz.
 
-PASO 3 — Regenerar (en una compu con Python 3)
-----------------------------------------------
-  pip install polars            (solo la primera vez)
-  python3 scripts/procesar_proyeccion.py RUTA_AL_CSV_O_ZIP
+Opciones:
+  --hoja NOMBRE   elegir la hoja del Excel (por defecto, la primera)
+  --via-csv       convierte el Excel a CSV en streaming antes de procesar.
+                  Usa MUCHA menos memoria (necesita: pip install openpyxl).
+                  Recomendado si la PC tiene menos de 8 GB de RAM.
+  --salida RUTA   escribir el JSON en otro lado (para comparar antes de pisar
+                  el actual: --salida /tmp/nuevo.json)
 
-  Ejemplos:
-    python3 scripts/procesar_proyeccion.py datos/proyeccion_larga_2025-26.csv
-    python3 scripts/procesar_proyeccion.py "Proyección larga_2025-26.zip"
+El script imprime al final la validación (bruto/neto totales, ajustes excluidos,
+meses detectados y cuáles quedaron parciales). Si los totales no cuadran con el
+ERP, revisá antes de publicar.
 
-Si no pasás nada, busca solo en: datos/proyeccion_larga_2025-26.csv o la raíz.
 
-El script imprime una validación al final (bruto/neto totales y ajustes excluidos).
-Si los totales no cuadran con tu ERP, revisá antes de publicar.
-
-PASO 4 — Publicar
+PASO 3 — Publicar
 -----------------
 Subir (commit) el data/proyeccion.json regenerado a la rama y recargar el tablero.
 Si usan GitHub Pages sobre esta rama, se actualiza solo.
 
-NOTAS
------
-- Si la próxima temporada trae 21-24 meses (MES 21 en adelante), hay que extender
-  MES_LABELS en scripts/procesar_proyeccion.py (lista mes_labels) y el mes_parcial.
-- Los ajustes contables ("DIFERENCIAS/AJUSTES") se excluyen solos del cube comercial.
-- Jul-2026 quedó parcial (desde el 20/07). Si llegan los días faltantes, el tablero
-  se corrige solo al regenerar (se quita el flag de parcial si la carga lo trae completo:
-  revisar MES_PARCIAL en el script si el mes ya está completo).
+
+QUÉ SE ACTUALIZA SOLO (ya no hay que tocar el código)
+-----------------------------------------------------
+- CANTIDAD DE MESES: si la próxima carga trae 21, 24 o los que sean, el ETL arma
+  las etiquetas desde la primera fecha y el tablero se adapta solo (antes estaba
+  clavado en 20 meses tanto en el script como en app.js).
+- MES PARCIAL: el ETL detecta solo si el último mes viene incompleto (por ejemplo
+  "solo desde el 20/07/2026") y el tablero lo marca en el header, en el filtro de
+  período (⚠) y con barra naranja en la serie mensual.
+- COLUMNA MES: si no viene o viene vacía, se reconstruye desde la Fecha.
+- NOMBRES DE COLUMNAS: tolera acentos/mayúsculas/espacios distintos ("Línea",
+  "LINEA ", "Linea").
+- AJUSTES CONTABLES ("DIFERENCIAS/AJUSTES") se excluyen solos del cube comercial.
+
+
+IMPORTANTE — corrección de importes (sep-2026)
+----------------------------------------------
+El parser numérico viejo perdía TODO importe escrito con separador de miles
+(1.234,50): quedaba nulo y no sumaba (eran 22.294 renglones). Ya está corregido.
+Por eso conviene regenerar el JSON con el xlsx: los totales van a subir respecto
+de los que muestra hoy el tablero publicado.
+
+
+PROBAR SIN TENER EL ARCHIVO
+---------------------------
+  python3 scripts/test_etl.py     -> genera datos sintéticos y valida el ETL
+                                     (CSV, XLSX y --via-csv tienen que coincidir)
+  node scripts/test_ui.mjs        -> corre app.js contra el JSON real sin navegador
+                                     (antes: npm install jsdom)

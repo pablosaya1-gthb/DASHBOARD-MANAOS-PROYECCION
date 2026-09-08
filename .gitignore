@@ -1,0 +1,19 @@
+# datos fuente (pesados, no van al repo: se bajan con scripts/descargar_datos.py)
+datos/
+*.csv
+*.xlsx
+*.xlsm
+*.zip
+!data/proyeccion.json
+
+# temporales del ETL
+**/_convertido.csv
+**/_tmp_excel.*
+
+# entornos y caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
