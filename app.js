@@ -73,6 +73,7 @@ const state = {
   esc: "base",         // escenario de proyección: cons | base | opt
   hz: 6,               // horizonte de proyección en meses
   win: 3,              // ventana (meses) para las alertas de clientes
+  cmp: "prev",         // comparar contra: prev (ventana anterior) | yoy (año anterior)
   drop: 0.35,          // caída mínima para marcar "en riesgo"
   cat: "todas",        // categoría de alerta mostrada
   sort: {}
@@ -283,6 +284,7 @@ function writeURL() {
   if (state.esc !== "base") p.push("esc=" + state.esc);
   if (state.hz !== 6) p.push("hz=" + state.hz);
   if (state.win !== 3) p.push("win=" + state.win);
+  if (state.cmp !== "prev") p.push("cmp=" + state.cmp);
   if (state.drop !== 0.35) p.push("drop=" + state.drop);
   if (state.cat !== "todas") p.push("cat=" + state.cat);
   history.replaceState(null, "", "#" + p.join("&"));
@@ -301,6 +303,7 @@ function readURL() {
   if (g.esc) state.esc = g.esc;
   if (g.hz) state.hz = parseInt(g.hz, 10) || 6;
   if (g.win) state.win = parseInt(g.win, 10) || 3;
+  if (g.cmp) state.cmp = g.cmp;
   if (g.drop) state.drop = parseFloat(g.drop) || 0.35;
   if (g.cat) state.cat = g.cat;
 }
@@ -861,8 +864,8 @@ function renderProyeccion(C) {
     const p = proyectar(serie, H);
     if (!p) return null;
     const proy = sumaRango(p.esc[esc], p.last + 1, p.last + H);
-    const ult = sumaRango(p.realAjust, p.last - H + 1, p.last);
-    return { name: D.meta.vnds[vi], proy, ult, d: ult > 0 ? (proy - ult) / ult : null, g: p.g[esc] - 1 };
+    const ant = sumaRango(p.realAjust, p.last + 1 - 12, p.last - 12 + H);
+    return { name: D.meta.vnds[vi], proy, ult: ant, d: ant > 0 ? (proy - ant) / ant : null, g: p.g[esc] - 1 };
   }).filter(Boolean).sort((a, b) => b.proy - a.proy);
   const totProy = filas.reduce((a, x) => a + x.proy, 0) || 1;
   $("#tb-proyvnd").innerHTML = filas.slice(0, 15).map(r => `
@@ -876,8 +879,8 @@ function renderProyeccion(C) {
     const p = proyectar(serie, H);
     if (!p) return null;
     const proy = sumaRango(p.esc[esc], p.last + 1, p.last + H);
-    const ult = sumaRango(p.realAjust, p.last - H + 1, p.last);
-    return { name: D.meta.lineas[li], proy, ult, d: ult > 0 ? (proy - ult) / ult : null };
+    const ant = sumaRango(p.realAjust, p.last + 1 - 12, p.last - 12 + H);
+    return { name: D.meta.lineas[li], proy, ult: ant, d: ant > 0 ? (proy - ant) / ant : null };
   }).filter(Boolean).sort((a, b) => b.proy - a.proy);
   const totLin = flin.reduce((a, x) => a + Math.max(0, x.proy), 0) || 1;
   $("#tb-proylin").innerHTML = flin.map(r => `
@@ -900,40 +903,61 @@ const CATS = {
 function calcAlertas() {
   const W = state.win, DROP = state.drop;
   const vals = D.serie.map(x => x.n);
-  let last = ultimoMesConDatos(vals);
+  const last = ultimoMesConDatos(vals);
   if (last < 0) return { rows: [], last, W };
-  const act0 = last - W + 1, prev0 = last - 2 * W + 1;
+
+  /* meses "usables": con datos y NO parciales (un mes a medio cargar
+     ensuciaría la comparación y marcaría caídas que no existen) */
+  const usables = [];
+  for (let m = last; m >= 0; m--) if (vals[m] > 0 && !esParcial(m)) usables.push(m);
+  const act = usables.slice(0, W).sort((a, b) => a - b);
+  let prev;
+  if (state.cmp === "yoy") prev = act.map(m => m - 12).filter(m => m >= 0);
+  else prev = usables.slice(W, 2 * W).sort((a, b) => a - b);
+  if (!prev.length) prev = usables.slice(W, 2 * W).sort((a, b) => a - b);
+
+  const setAct = new Set(act), setPrev = new Set(prev);
+  const primerAct = act.length ? act[0] : last;
   const rows = filteredClients().map(c => {
-    let act = 0, prev = 0, tot = 0;
+    let a = 0, p = 0, tot = 0;
     for (let m = 0; m < NM; m++) {
       const b = c.h[m][0];
       tot += b;
-      if (m >= act0 && m <= last) act += b;
-      else if (m >= prev0 && m < act0) prev += b;
+      if (setAct.has(m)) a += b;
+      if (setPrev.has(m)) p += b;
     }
-    const delta = act - prev;
-    const pct = prev > 0 ? delta / prev : (act > 0 ? null : null);
+    const delta = a - p;
+    const pct = p > 0 ? delta / p : null;
     const firstIdx = c.first - 1;
     let cat = "estable";
-    if (act === 0 && prev > 0) cat = "perdido";
-    else if (act > 0 && firstIdx >= act0) cat = "nuevo";
-    else if (act > 0 && prev === 0) cat = "recuperado";
-    else if (prev > 0 && pct != null && pct <= -DROP) cat = "riesgo";
-    else if (prev > 0 && pct != null && pct >= DROP) cat = "creciendo";
+    if (a === 0 && p > 0) cat = "perdido";
+    else if (a > 0 && firstIdx >= primerAct) cat = "nuevo";
+    else if (a > 0 && p === 0) cat = "recuperado";
+    else if (p > 0 && pct != null && pct <= -DROP) cat = "riesgo";
+    else if (p > 0 && pct != null && pct >= DROP) cat = "creciendo";
     return { c: c.c, vnd: c.vnd || "—", prov: c.prov || "—", last: c.last,
-      lastLbl: D.meta.mes_labels[c.last - 1] || "—", act, prev, delta, pct, tot, cat };
+      lastLbl: D.meta.mes_labels[c.last - 1] || "—", act: a, prev: p, delta, pct, tot, cat };
   }).filter(r => r.tot !== 0);
-  return { rows, last, W, act0, prev0 };
+  return { rows, last, W, act, prevM: prev };
 }
 
 function renderAlertas() {
   const A = calcAlertas();
   const mL = D.meta.mes_labels;
-  if (A.last < 0) { $("#alert-kpis").innerHTML = ""; $("#tb-alert").innerHTML = ""; return; }
-  const rango = (a, b) => `${mL[Math.max(0, a)]} → ${mL[b]}`;
-  $("#alert-note").innerHTML = `Compara <b>${rango(A.act0, A.last)}</b> contra
-    <b>${rango(A.prev0, A.act0 - 1)}</b> (bruto por cliente). Respeta los filtros de vendedor,
-    2º vendedor y provincia; <b>no</b> el de período. Última compra según la temporada completa.`;
+  if (A.last < 0 || !A.act || !A.act.length) {
+    $("#alert-kpis").innerHTML = ""; $("#tb-alert").innerHTML = ""; return;
+  }
+  /* si la ventana salteó un mes parcial, se listan los meses en vez de un rango */
+  const rango = arr => {
+    if (!arr.length) return "—";
+    const seguido = arr.every((m, i) => i === 0 || m === arr[i - 1] + 1);
+    if (arr.length === 1) return mL[arr[0]];
+    return seguido ? `${mL[arr[0]]} → ${mL[arr[arr.length - 1]]}` : arr.map(m => mL[m]).join(", ");
+  };
+  $("#alert-note").innerHTML = `Compara <b>${rango(A.act)}</b> contra <b>${rango(A.prevM)}</b>
+    ${state.cmp === "yoy" ? "(mismo período del año anterior)" : "(ventana inmediata anterior)"},
+    sobre el bruto de cada cliente. Los meses parciales quedan afuera. Respeta los filtros de
+    vendedor, 2º vendedor y provincia; <b>no</b> el de período.`;
 
   const por = k => A.rows.filter(r => r.cat === k);
   const suma = arr => arr.reduce((a, r) => a + r.prev - r.act, 0);
@@ -943,9 +967,11 @@ function renderAlertas() {
     { l: "Clientes perdidos", v: fmtInt(perdidos.length), s: `dejaron de comprar · ${fmtARS(suma(perdidos))} menos`, cls: "neg" },
     { l: "En riesgo", v: fmtInt(riesgo.length), s: `caen más de ${fmtPct(state.drop)} · ${fmtARS(suma(riesgo))} menos`, cls: "neg" },
     { l: "Recuperados", v: fmtInt(recup.length), s: `volvieron a comprar · ${fmtARS(-suma(recup))} más` },
-    { l: "Nuevos", v: fmtInt(nuevos.length), s: `primera compra en la ventana · ${fmtARS(recup.length ? -suma(nuevos) : -suma(nuevos))}` },
+    { l: "Nuevos", v: fmtInt(nuevos.length), s: `primera compra en la ventana · ${fmtARS(-suma(nuevos))} sumados` },
     { l: "Creciendo", v: fmtInt(crec.length), s: `suben más de ${fmtPct(state.drop)} · ${fmtARS(-suma(crec))} más` },
-    { l: "Saldo de la ventana", v: fmtARS(-suma(A.rows)), s: "diferencia total contra la ventana previa" }
+    { l: "Saldo de la ventana", v: fmtARS(-suma(A.rows)),
+      s: state.cmp === "yoy" ? "diferencia contra el mismo período del año anterior"
+                             : "diferencia contra la ventana inmediata anterior" }
   ];
   $("#alert-kpis").innerHTML = kpis.map(k => `<div class="kpi"><div class="kpi-label">${k.l}</div>
     <div class="kpi-value">${k.v}</div><div class="kpi-sub">${k.s}</div></div>`).join("");
@@ -1288,11 +1314,13 @@ async function init() {
   chipGroup("#hz-ctrl", "hz", v => state.hz = parseInt(v, 10));
   chipGroup("#win-ctrl", "win", v => state.win = parseInt(v, 10));
   chipGroup("#drop-ctrl", "drop", v => state.drop = parseFloat(v));
+  chipGroup("#cmp-ctrl", "cmp", v => state.cmp = v);
   chipGroup("#cat-ctrl", "cat", v => state.cat = v);
   marcarChip("#esc-ctrl", "esc", state.esc);
   marcarChip("#hz-ctrl", "hz", state.hz);
   marcarChip("#win-ctrl", "win", state.win);
   marcarChip("#drop-ctrl", "drop", state.drop);
+  marcarChip("#cmp-ctrl", "cmp", state.cmp);
   marcarChip("#cat-ctrl", "cat", state.cat);
   $("#search-alert").addEventListener("input", () => renderAlertas());
   $("#btn-alert-csv").onclick = () => descargarAlertasCSV();

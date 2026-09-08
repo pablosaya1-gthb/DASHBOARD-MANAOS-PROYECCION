@@ -53,8 +53,9 @@ equipo, provincia y línea).
 
 ### Cómo se calculan las alertas
 
-Se compara la **ventana actual** (últimos N meses con datos) contra la **ventana previa**
-del mismo largo, sobre el bruto de cada cliente:
+Se compara la **ventana actual** (últimos N meses con datos, salteando los parciales) contra
+la **ventana previa** del mismo largo — o contra el **mismo período del año anterior**, útil en
+un negocio estacional — sobre el bruto de cada cliente:
 
 | Estado | Regla |
 |---|---|

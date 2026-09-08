@@ -184,7 +184,7 @@
       <div class="card table-card">
         <div class="table-head"><h3>Proyección por vendedor <small>(top 15, escenario elegido)</small></h3></div>
         <div class="table-wrap"><table class="tbl" id="tbl-proyvnd">
-          <thead><tr><th>Vendedor</th><th class="num">Últimos meses</th><th class="num">Proyectado</th>
+          <thead><tr><th>Vendedor</th><th class="num">Año anterior</th><th class="num">Proyectado</th>
           <th class="num">Δ%</th><th class="num">Ritmo aplicado</th></tr></thead>
           <tbody id="tb-proyvnd"></tbody>
         </table></div>
@@ -192,7 +192,7 @@
       <div class="card table-card">
         <div class="table-head"><h3>Proyección por línea</h3></div>
         <div class="table-wrap"><table class="tbl" id="tbl-proylin">
-          <thead><tr><th>Línea</th><th class="num">Últimos meses</th><th class="num">Proyectado</th>
+          <thead><tr><th>Línea</th><th class="num">Año anterior</th><th class="num">Proyectado</th>
           <th class="num">Δ%</th><th class="num">% del total</th></tr></thead>
           <tbody id="tb-proylin"></tbody>
         </table></div>
@@ -286,6 +286,13 @@
           <button class="chip" data-win="2">2 meses</button>
           <button class="chip active" data-win="3">3 meses</button>
           <button class="chip" data-win="6">6 meses</button>
+        </div>
+      </div>
+      <div class="f-group">
+        <span class="f-title">Comparar contra</span>
+        <div class="presets" id="cmp-ctrl">
+          <button class="chip active" data-cmp="prev">Ventana anterior</button>
+          <button class="chip" data-cmp="yoy">Año anterior</button>
         </div>
       </div>
       <div class="f-group">
