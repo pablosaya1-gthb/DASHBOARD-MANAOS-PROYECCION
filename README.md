@@ -22,13 +22,47 @@ comprobantes) de la temporada **Ene 2025 → Ago 2026** (20 meses).
 
 - **8 KPIs**: facturación neta/bruta, volumen, clientes activos, documentos, ticket promedio,
   devoluciones y bonificaciones — todos con variación interanual (mes 2026 vs mismo mes 2025).
-- **6 secciones**: General (serie mensual, curva de temporada, YoY, mix), Vendedores (ranking
-  + tendencia comparada + tabla), Clientes (Pareto, nuevos, top 30 e historia por cliente),
-  Productos (líneas, escala de precios, presentaciones, sabores, top 30 artículos),
-  Territorio (provincias y top 15 localidades) y Datos (calidad + metodología).
+- **8 secciones**:
+  - **General** — serie mensual, curva de temporada, YoY, mix por línea y tipo.
+  - **Proyección** — pronóstico de los próximos 3/6/12 meses con tres escenarios
+    (conservador · base · optimista), real vs proyectado, acumulado móvil 12 meses y
+    apertura por vendedor y por línea.
+  - **Vendedores** — ranking, tendencia comparada, tabla y **comparativo por equipo**
+    (2º vendedor) con YoY y participación.
+  - **Clientes** — Pareto, nuevos, top 30 e historia por cliente.
+  - **Alertas** — clientes **perdidos / en riesgo / recuperados / nuevos / creciendo**,
+    con ventana configurable (1-6 meses), umbral de caída, mayores caídas en $,
+    alertas por vendedor y **descarga a CSV**.
+  - **Productos** — líneas, escala de precios, presentaciones, sabores, top 30 artículos.
+  - **Territorio** — provincias y top 15 localidades.
+  - **Datos** — calidad y metodología.
 - **Filtros combinables** (período, vendedor, 2º vendedor/equipo, provincia, línea) con
   recálculo instantáneo en cliente, búsqueda en tablas, ordenamiento y **link compartible**
-  con el estado de los filtros en la URL.
+  con el estado de los filtros en la URL (incluye escenario, horizonte y ventana de alertas).
+
+### Cómo se calcula la proyección
+
+`proyección(mes) = neto del mismo mes del año anterior × ritmo reciente`
+
+El **ritmo** es la suma de los últimos 3 meses comparables dividida por la del mismo período
+del año anterior (se saltean los meses parciales). El escenario **base** usa ese ritmo, el
+**conservador** el peor YoY reciente y el **optimista** el mejor (acotados a ±50 %). Si el
+último mes viene parcial, se completa a ritmo diario antes de proyectar. La pestaña usa
+siempre la historia completa: el filtro de período no la afecta (sí los de vendedor,
+equipo, provincia y línea).
+
+### Cómo se calculan las alertas
+
+Se compara la **ventana actual** (últimos N meses con datos) contra la **ventana previa**
+del mismo largo, sobre el bruto de cada cliente:
+
+| Estado | Regla |
+|---|---|
+| Perdido | compraba antes y **no compró** en la ventana actual |
+| En riesgo | sigue comprando pero **cae** más que el umbral elegido (20/35/50 %) |
+| Recuperado | no compró en la ventana previa y **volvió** |
+| Nuevo | primera compra de la temporada dentro de la ventana |
+| Creciendo | sube más que el umbral |
 
 ## Cómo usarlo
 

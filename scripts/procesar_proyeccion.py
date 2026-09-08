@@ -626,6 +626,22 @@ def main():
                                  pl.col("Número").n_unique().alias("d"),
                                  pl.col("Nombre fantasía").n_unique().alias("c")) \
            .sort("MES").to_dict(as_series=False)
+    # cobertura de días por mes (para estimar el cierre de un mes parcial)
+    import calendar as _cal
+    dd = (vc.group_by("MES").agg(pl.col("dt").min().alias("d1"),
+                                 pl.col("dt").max().alias("d2"),
+                                 pl.col("dt").n_unique().alias("nd"))
+            .to_dict(as_series=False))
+    dias_por_mes = {}
+    for m, d1, d2, nd in zip(dd["MES"], dd["d1"], dd["d2"], dd["nd"]):
+        if d1 is None:
+            continue
+        dias_por_mes[int(m)] = {
+            "d1": d1.day, "d2": d2.day,
+            "dm": _cal.monthrange(d1.year, d1.month)[1],
+            "nd": int(nd or 0),
+        }
+
     serie = []
     for m in range(1, n_mes + 1):
         i = sm["MES"].index(m) if m in sm["MES"] else None
@@ -635,6 +651,7 @@ def main():
             "v": r1(sm["v"][i]) if i is not None else 0,
             "d": int(sm["d"][i]) if i is not None else 0,
             "c": int(sm["c"][i]) if i is not None else 0,
+            "dias": dias_por_mes.get(m),
         })
 
     out = {

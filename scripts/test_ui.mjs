@@ -92,7 +92,7 @@ chk(Math.abs(suma - esperado) / Math.abs(esperado) < 1e-6,
   `neto del chart = neto del JSON (${Math.round(suma).toLocaleString("es-AR")})`);
 
 // tablas de las otras pestañas
-for (const tab of ["vendedores", "clientes", "productos", "territorio", "datos"]) {
+for (const tab of ["proyeccion", "vendedores", "clientes", "alertas", "productos", "territorio", "datos"]) {
   const btn = doc.querySelector(`.tab[data-tab="${tab}"]`);
   if (!btn) { chk(false, `existe la pestaña ${tab}`); continue; }
   const antes = charts.length;
@@ -103,6 +103,41 @@ for (const tab of ["vendedores", "clientes", "productos", "territorio", "datos"]
   chk(ok, `pestaña ${tab} renderiza (${charts.length - antes} charts, ${pane ? pane.textContent.replace(/\s/g, "").length : 0} chars)`);
 }
 chk(errores.length === 0, `sin errores de JS al recorrer las pestañas ${errores.length ? "→ " + errores[0] : ""}`);
+
+// --- Proyección ---
+doc.querySelector('.tab[data-tab="proyeccion"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+const nProy = doc.querySelectorAll("#tb-proy tr").length;
+chk(nProy === 6, `proyección mes a mes con ${nProy} meses (horizonte por defecto 6)`);
+chk(doc.querySelectorAll("#proj-kpis .kpi").length >= 5, `${doc.querySelectorAll("#proj-kpis .kpi").length} KPIs de proyección`);
+chk(doc.querySelectorAll("#tb-proyvnd tr").length > 0, `proyección por vendedor: ${doc.querySelectorAll("#tb-proyvnd tr").length} filas`);
+chk(doc.querySelectorAll("#tb-proylin tr").length > 0, `proyección por línea: ${doc.querySelectorAll("#tb-proylin tr").length} filas`);
+const proyKpi = doc.querySelector("#proj-kpis .kpi-value")?.textContent || "";
+chk(/\d/.test(proyKpi), `total proyectado = ${proyKpi}`);
+// cambiar horizonte y escenario
+doc.querySelector('#hz-ctrl .chip[data-hz="12"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+chk(doc.querySelectorAll("#tb-proy tr").length === 12, "horizonte 12 meses recalcula la tabla");
+const base12 = doc.querySelector("#proj-kpis .kpi-value").textContent;
+doc.querySelector('#esc-ctrl .chip[data-esc="cons"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+chk(doc.querySelector("#proj-kpis .kpi-value").textContent !== base12,
+  `el escenario conservador cambia el total (${base12} → ${doc.querySelector("#proj-kpis .kpi-value").textContent})`);
+
+// --- Alertas ---
+doc.querySelector('.tab[data-tab="alertas"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+const nAlert = doc.querySelectorAll("#tb-alert tr").length;
+chk(nAlert > 0, `tabla de alertas con ${nAlert} filas`);
+chk(doc.querySelectorAll("#alert-kpis .kpi").length === 6, "6 KPIs de alertas");
+chk((doc.querySelector("#alert-count")?.textContent || "").includes("cliente"), `contador: ${doc.querySelector("#alert-count")?.textContent}`);
+doc.querySelector('#cat-ctrl .chip[data-cat="perdido"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+const soloPerdidos = [...doc.querySelectorAll("#tb-alert .tag")].every(t => t.textContent === "Perdido");
+chk(soloPerdidos, `el filtro "Perdidos" deja solo esa categoría (${doc.querySelectorAll("#tb-alert tr").length} filas)`);
+doc.querySelector('#win-ctrl .chip[data-win="6"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+chk(doc.querySelectorAll("#tb-alert tr").length >= 0, "cambiar la ventana a 6 meses no rompe");
+
+// --- Equipos ---
+doc.querySelector('.tab[data-tab="vendedores"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+chk(doc.querySelectorAll("#tb-eq tr").length > 0, `tabla de equipos con ${doc.querySelectorAll("#tb-eq tr").length} filas`);
+
+chk(errores.length === 0, `sin errores de JS en las vistas nuevas ${errores.length ? "→ " + errores[0] : ""}`);
 
 console.log("\n" + (fallos.length ? `${fallos.length} FALLAS ✘` : "TODO OK ✔"));
 process.exit(fallos.length ? 1 : 0);

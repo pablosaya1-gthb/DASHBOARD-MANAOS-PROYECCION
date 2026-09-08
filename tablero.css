@@ -143,3 +143,23 @@ body{font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif;background:v
   .kpi-value{font-size:18px}
   .topbar-actions .gen{display:none}
 }
+
+/* ---------- controles de Proyección / Alertas ---------- */
+.ctrl-card{display:flex;flex-wrap:wrap;gap:12px 26px;align-items:flex-start;padding:13px 16px}
+.ctrl-card .f-group.grow{flex:1;min-width:240px}
+.ctrl-card .filter-note{margin:2px 0 0;line-height:1.45}
+.table-head .presets{margin-left:auto}
+.table-head .search{margin-left:8px}
+.btn.ghost.dark{background:var(--bg);color:var(--ink-2);border:1px solid var(--line);padding:6px 11px;font-size:12.5px}
+.btn.ghost.dark:hover{border-color:var(--primary);color:var(--primary)}
+.eq-wrap{max-height:340px;overflow:auto}
+.tbl td.small{font-size:11px}
+
+/* etiquetas de estado de cliente */
+.tag{display:inline-block;padding:1.5px 8px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
+.tag.bad{background:rgba(214,51,108,.12);color:#b02a5b}
+.tag.warn{background:rgba(232,137,12,.14);color:#b3690a}
+.tag.info{background:rgba(16,152,173,.14);color:#0b7285}
+.tag.new{background:rgba(92,124,250,.14);color:#3b5bdb}
+.tag.good{background:rgba(47,158,68,.13);color:#2b8a3e}
+.tag.mut{background:var(--bg);color:var(--ink-3)}
